@@ -1,6 +1,6 @@
 ## AnsibleでLAMP環境＋WordPress環境構築（さくらのクラウド）
 
-下記ワークショップ用のAsibleServerspecで使用するファイル
+下記ワークショップ用のAsibleやServerspecで使用するファイル
 
 さくらのクラウド環境構築(CentOS7+Ansible)(備忘録)
 

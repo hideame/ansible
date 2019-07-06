@@ -1,4 +1,4 @@
-# AnsibleでLAMP環境＋WordPress環境構築（さくらのクラウド）
+## AnsibleでLAMP環境＋WordPress環境構築（さくらのクラウド）
 
 下記ワークショップ用のAsibleServerspecで使用するファイル
 

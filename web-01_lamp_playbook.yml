@@ -1,0 +1,135 @@
+- name: LAMP環境構築(さくらのクラウド)
+  hosts: "{{ hostname }}"
+  #become: true					# 今回はrootユーザで実行するのでsudo不要
+  vars:
+    hostname: web-01				# hostname変数を設定
+    database_name: wp
+    db_username: wpadmin
+    db_password: wpadmin
+  tasks:
+    #- name: 'yum update'			# 時間が掛かるので今回のワークショップでは省略
+    #  yum:
+    #    name: '*'
+    #    state: latest				# パッケージを最新の状態に更新
+
+    - name: PHPインストール
+      yum:
+        name: ['epel-release-7-11', 'php-5.4.16', 'php-mbstring-5.4.16']
+        state: present				# パッケージがインストールされていなければインストール
+        # epel-release: 拡張パッケージリポジトリ
+        # php-mbstring: マルチバイト文字列拡張モジュール
+
+    - name: MariaDBインストール
+      yum:
+        name: ['mariadb-5.5.60', 'mariadb-server-5.5.60', 'php-mysqlnd-5.4.16']
+        state: present
+        # php-mysqlnd: MariaDB用ドライバ
+  
+    - name: 最新のRubyインストール用パッケージインストール
+      yum:
+        name: ['centos-release-scl-rh-2-3*', 'centos-release-scl-2-3*']
+        state: present
+        # centos-release-scl-rh: RHELSC互換の各種パッケージ
+        # centos-release-scl:    CentOS SCLo SIGが提供するパッケージ
+  
+    - name: Rubyインストール
+      yum:
+        name: ['rh-ruby25-ruby', 'rh-ruby25-ruby-devel']
+        state: present
+  
+    - name: 環境設定ファイル追記
+      lineinfile:
+        dest: ~/.bashrc
+        line: 'source /opt/rh/rh-ruby25/enable'
+  
+    - name: 環境設定ファイル再読み込み
+      shell: source ~/.bashrc
+  
+    - name: Railsで必要なパッケージインストール
+      yum:
+        name: ['libxml2-devel', 'sqlite-devel', 'nodejs']
+        # nodejs: railsで必要なGemパッケージ(therubyracer)がインストールされる
+
+    - name: Ruby Gems インストール
+      gem:
+        name: "{{ item }}"
+        user_install: no			# システム領域にインストール
+        state: present
+      with_items:
+        - bundler
+        - rake					# Serverspecに必要なライブラリ
+        - serverspec				# サーバ構成テストツール
+        - rails
+
+    - name: Python3インストール
+      yum:
+        name: ['python36', 'python36-pip', 'MySQL-python-1.2.5']
+        state: present
+  
+    - name: pipアップグレード済みなら実施しない
+      stat:
+        path: /usr/bin/pip3
+      register: pip3
+  
+    - name: pipのアップグレード
+      pip:
+        name: pip
+        executable: /usr/bin/pip3
+        state: latest                             # 最新のバージョンにアップデート
+      when: pip3.stat.exists
+  
+    - name: phpテストページの作成
+      copy:
+        src: phpinfo.php
+        dest: /var/www/html/phpinfo.php
+  
+    - name: httpプロトコル開放
+      firewalld:
+        service: http
+        state: enabled
+        permanent: true
+  
+    - name: 3000番ポート開放
+      firewalld:
+        port: 3000/tcp
+        state: enabled
+        permanent: true
+  
+    - name: 各種サービスを再起動し、自動起動を有効化
+      service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: yes
+      with_items:
+        - httpd
+        - mariadb
+        - firewalld
+  
+    - name: ~/.my.cnfを配置(MySQL設定ファイル)
+      become_user: root				# 該当ユーザへsudo
+      template:
+        src: my.cnf.j2
+        dest: ~/.my.cnf
+        mode: 0600
+  
+    - name: MySQL rootユーザのパスワードを設定
+      mysql_user:
+        name: root
+        password: "{{ db_password }}"
+        check_implicit_admin: yes		# ノンパスでrootログインを試みる
+  
+    - name: MySQL DB作成
+      mysql_db:
+        login_user: root
+        login_password: "{{ db_password }}"
+        name: "{{ database_name }}"
+        state: present				# 存在しない場合のみ作成
+  
+    - name: MySQLユーザの作成及びDBへの権限付与
+      mysql_user:
+        login_user: root
+        login_password: "{{ db_password }}"
+        name: "{{ db_username }}"
+        password: "{{ db_password }}"
+        priv: "{{ database_name }}.*:ALL"
+        state: present

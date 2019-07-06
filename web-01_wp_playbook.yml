@@ -1,0 +1,165 @@
+- name: WordPress環境構築
+  hosts: "{{hostname}}"
+  become: true
+  vars:
+    hostname: web-01			# ホスト名を記載
+    IP: 153.127.192.5			# IPアドレスを記載
+    database_name: wp
+    db_username: wpadmin
+    db_password: wpadmin
+    wordpress_ver: wordpress-5.1.1-ja.tar.gz
+    wp_path: /var/www/wordpress
+    wp_owner: root			# apacheユーザが理想(今回はユーザの作成は省略)
+    wp_group: root                      # apacheグループが理想(今回はグループの作成は省略)
+    title: Ansbile入門			# Webサイトのタイトルを記載
+    email: hamezawa3@gmail.com		# Webサイト管理者のメールアドレスを記載
+  tasks:
+          - name: WordPressのダウンロード
+            get_url:
+              url: "https://ja.wordpress.org/{{wordpress_ver}}"
+              dest: "/tmp/{{wordpress_ver}}"
+ 
+          - name: WordPressが展開済みなら実施しない
+            stat:
+              path: "{{wp_path}}"
+            register: wordpress
+ 
+          - name: WordPressの展開
+            unarchive:
+              src: "/tmp/{{wordpress_ver}}"
+              dest: /var/www/
+              remote_src: yes				# リモートにダウンロードデータがある場合はyes
+            when: not wordpress.stat.exists
+ 
+          - name: WordPressの所有権をapacheに変更	# 今回はroot
+            file:
+              path: "{{wp_path}}"
+              owner: "{{wp_owner}}"
+              group: "{{wp_group}}"
+              recurse: yes
+ 
+          - name: WP-CLIコマンドのダウンロード
+            get_url:
+              url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+              dest: /usr/local/bin/wp
+              owner: "{{wp_owner}}"
+              group: "{{wp_group}}"
+              mode: 0755
+ 
+          - name: configファイル設定済みなら実施しない
+            stat:
+              path: "{{wp_path}}/wp-config.php"
+            register: wpconfig
+ 
+          - name: WordPressのconfigファイル設定(DB設定情報)
+            become_user: "{{wp_owner}}"
+            shell: /usr/local/bin/wp core config --dbhost=localhost --dbname="{{database_name}}" --dbuser="{{db_username}}" --dbpass="{{db_password}}" --path="{{wp_path}}"
+            when: not wpconfig.stat.exists
+ 
+          - name: WordPressのインストール
+            become_user: "{{wp_owner}}"
+            shell: /usr/local/bin/wp core install --title="{{title}}" --url="{{IP}}" --admin_user=admin --admin_password=admin --admin_email="{{email}}" --path="{{wp_path}}"
+            when: not wpconfig.stat.exists
+ 
+          - name: DocumentRootの変更
+            lineinfile:
+              dest: /etc/httpd/conf/httpd.conf
+              regexp: '^DocumentRoot "/var/www/html"$'
+              line: 'DocumentRoot "/var/www/wordpress"'
+              backrefs: yes				# マッチしなかった場合もEOFに追記しない		
+ 
+          - name: httpdサービスの再起動
+            service:
+              name: httpd
+              state: restarted
+ 
+          - name: Theme(habakiri)がインストール済みなら実施しない
+            stat:
+              path: "{{wp_path}}/wp-content/themes/habakiri"
+            register: habakiri
+ 
+          - name: Theme(habakiri)のインストール
+            become_user: "{{wp_owner}}"
+            shell: /usr/local/bin/wp theme install habakiri --path="{{wp_path}}" --activate
+            when: not habakiri.stat.exists
+ 
+          - name: Theme(cocoon-master)のダウンロード
+            get_url:
+              url: https://wp-cocoon.com/download/791/
+              dest: /tmp/cocoon-master-1.7.4.9.zip
+ 
+          - name: Theme(cocoon子テーマ)のダウンロード
+            get_url:
+              url: https://wp-cocoon.com/download/726/
+              dest: /tmp/cocoon-child-master-1.0.6.zip
+ 
+          - name: Theme(cocoon-master)が展開済みなら実施しない
+            stat:
+              path: "{{wp_path}}/wp-content/themes/cocoon-master"
+            register: cocoon
+ 
+          - name: Theme(cocoon-master)の展開
+            unarchive:
+              src: /tmp/cocoon-master-1.7.4.9.zip
+              dest: "{{wp_path}}/wp-content/themes/"
+              remote_src: yes				# リモートにダウンロードデータがある場合はyes
+            when: not cocoon.stat.exists
+ 
+          - name: Theme(cocoon子テーマ)が展開済みなら実施しない
+            stat:
+              path: "{{wp_path}}/wp-content/themes/cocoon-child-master"
+            register: cocoonchild
+ 
+          - name: Theme(cocoon子テーマ)の展開
+            unarchive:
+              src: /tmp/cocoon-child-master-1.0.6.zip
+              dest: "{{wp_path}}/wp-content/themes/"
+              remote_src: yes				# リモートにダウンロードデータがある場合はyes
+            when: not cocoonchild.stat.exists
+ 
+          #- name: themes配下の所有権をapacheに変更	# 今回はrootのまま
+          #  file:
+          #    path: "{{wp_path}}/wp-content/themes"
+          #    owner: "{{wp_owner}}"
+          #    group: "{{wp_group}}"
+          #    recurse: yes
+ 
+          - name: Theme(cocoon) Activate
+            become_user: "{{wp_owner}}"
+            shell: /usr/local/bin/wp theme activate cocoon-master --path="{{wp_path}}"
+ 
+          - name: wp-config.phpの変更(localhostから実際のIPアドレスに)
+            lineinfile:
+              dest: /var/www/wordpress/wp-config.php
+              regexp: "^define\\( 'DB_HOST', 'localhost' \\);"
+              line: "define( 'DB_HOST', '{{IP}}' );"
+              backrefs: yes				# マッチしなかった場合もEOFに追記しない		
+ 
+          - name: Webサーバからwpdbへのアクセスを許可(wpadminユーザ)
+            shell: mysql -uroot -p{{db_password}} -e'GRANT ALL PRIVILEGES ON {{database_name}}.* TO {{db_username}}@"{{IP}}" IDENTIFIED BY "{{db_password}}";'
+ 
+          - name: 設定を反映
+            shell: mysql -uroot -p"{{db_password}}" -e'FLUSH PRIVILEGES;'
+ 
+          - name: plugin install
+            become_user: "{{wp_owner}}"
+            shell: /usr/local/bin/wp plugin install "{{item}}" --path="{{wp_path}}" --activate
+            with_items:
+                    - all-in-one-seo-pack		# SEO(検索エンジン最適化)対策ツール
+                    - backwpup				# WordPressのファイルとデータベースのバックアップを取得
+                    - broken-link-checker		# リンク切れを自動でチェック
+                    - classic-editor			# WordPressの旧エディターのスタイルの投稿編集画面レイアウトを有効化
+                    - contact-form-7			# お問い合わせフォームプラグイン(メール機能は下記下記Gmail SMTPで実装
+                    - flickr-pick-a-picture		# 著作権リンク付きの写真を挿入
+                    - gmail-smtp			# GmailのSMTPサーバー経由でメールを送信
+                    - google-analytics-dashboard-for-wp	# ダッシュボードでアナリティクスを確認
+                    - google-sitemap-generator		# サイトマップをGoogleに送信してインデックスへの登録漏れを防ぐ
+                    - ml-slider				# 簡単に使えるスライドショープラグイン
+                    - pixabay-images			# パブリックドメイン(知的財産権のない)画像を簡単に挿入
+                    - polylang				# WordPress に多言語機能を追加
+                    - siteorigin-panels			# 固定ページにもサイドバーウィジェットを作成
+                    - syntaxhighlighter			# ソースコードを綺麗に表示
+                    - table-of-contents-plus		# 自動的に目次を生成
+                    - wordpress-importer		# WordPressエクスポートファイルからインポートするツール
+                    - wp-multibyte-patch		# 日本語版WordPressのマルチバイト文字の取り扱いに関する不具合の修正
+                    - wp-scroll-depth			# 記事がどこまで読まれたかを計測(25%､50%､75%､100%)

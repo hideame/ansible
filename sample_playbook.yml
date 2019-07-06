@@ -1,0 +1,12 @@
+- hosts: web-01
+  vars:
+    message: "Hello Ansible!!"			# message変数を設定
+  tasks:
+    - shell: uptime
+      register: result				# 実行結果をresult変数に格納
+
+    - debug:
+        msg: "{{ result.stdout }}"		# 上記実行結果の標準出力を表示
+
+    - debug:
+        msg: "{{ message }}"			# message変数を表示

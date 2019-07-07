@@ -12,7 +12,7 @@
     wp_owner: root			# apacheユーザが理想(今回はユーザの作成は省略)
     wp_group: root                      # apacheグループが理想(今回はグループの作成は省略)
     title: Ansbile入門			# Webサイトのタイトルを記載
-    email: hamezawa3@gmail.com		# Webサイト管理者のメールアドレスを記載
+    email: XXXX@gmail.com		# Webサイト管理者のメールアドレスを記載
   tasks:
           - name: WordPressのダウンロード
             get_url:

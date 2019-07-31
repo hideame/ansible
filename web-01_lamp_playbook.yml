@@ -12,18 +12,26 @@
     #    name: '*'
     #    state: latest				# パッケージを最新の状態に更新
 
+    - name: EPELリポジトリを追加
+      yum:
+        name: ['epel-release-7-11']
+
+    - name: Remiリポジトリを追加(PHP7用)
+      yum:
+        name: ['http://rpms.famillecollet.com/enterprise/remi-release-7.rpm']
+
     - name: PHPインストール
       yum:
-        name: ['epel-release-7-11', 'php-5.4.16', 'php-mbstring-5.4.16']
+        name: ['php', 'php-mbstring', 'php-mysqlnd', 'php-pdo']
+        enablerepo: remi,remi-php73
         state: present				# パッケージがインストールされていなければインストール
-        # epel-release: 拡張パッケージリポジトリ
         # php-mbstring: マルチバイト文字列拡張モジュール
+        # php-mysqlnd: MariaDB用ドライバ
 
     - name: MariaDBインストール
       yum:
-        name: ['mariadb-5.5.60', 'mariadb-server-5.5.60', 'php-mysqlnd-5.4.16']
+        name: ['mariadb-5.5.60', 'mariadb-server-5.5.60']
         state: present
-        # php-mysqlnd: MariaDB用ドライバ
   
     - name: 最新のRubyインストール用パッケージインストール
       yum:

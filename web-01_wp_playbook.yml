@@ -3,7 +3,7 @@
   become: true
   vars:
     hostname: web-01			# ホスト名を記載
-    IP: 153.XXX.XXX.X			# IPアドレスを記載
+    IP: 153.XX.XX.XX			# IPアドレスを記載
     database_name: wp
     db_username: wpadmin
     db_password: wpadmin

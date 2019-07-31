@@ -5,7 +5,7 @@ require 'spec_helper'
 #end
 
 # eachメソッドを使用
-%w(httpd php-5.4.16 mariadb-server-5.5.60 rh-ruby25-ruby python36 python36-pip).each do |pkg|
+%w(httpd php-7.3.7 mariadb-server-5.5.60 rh-ruby25-ruby python36 python36-pip).each do |pkg|
   describe package(pkg) do
     it { should be_installed }			# 該当パッケージがインストールされていること
   end
